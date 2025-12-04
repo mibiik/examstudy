@@ -5,7 +5,8 @@ import {
   Sun, Sunset, Moon, Bell, CheckCircle, 
   Menu, X, Timer, Play, Pause, RotateCcw, History, Lock,
   ChevronLeft, Save, Trash2, Edit3, Award, Settings,
-  Headphones, ListTodo, Trophy, CalendarClock, TrendingUp, Volume2, Plus, Square, CheckSquare
+  Headphones, ListTodo, Trophy, CalendarClock, TrendingUp, Volume2, Plus, Square, CheckSquare,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { CourseType, ScheduleItem, StudyLog, TodoItem } from './types';
 
@@ -87,6 +88,8 @@ function App() {
   // Sound State
   const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [soundVolume, setSoundVolume] = useState<number>(0.6);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   
   // Modal for Saving/Discarding
   const [pendingSession, setPendingSession] = useState<{mode: string, duration: number} | null>(null);
@@ -128,6 +131,13 @@ function App() {
       } catch (e) {
         console.error("Failed to parse tasks", e);
       }
+    }
+
+    // Load sound volume
+    const savedVol = localStorage.getItem('soundVolume');
+    if (savedVol) {
+      const vol = parseFloat(savedVol);
+      if (!isNaN(vol)) setSoundVolume(Math.min(1, Math.max(0, vol)));
     }
 
     // 3. Scroll to today
@@ -220,6 +230,7 @@ function App() {
         } else {
           audioRef.current.src = sound.url;
         }
+        audioRef.current.volume = soundVolume;
         audioRef.current.play().catch(e => console.error("Audio play error", e));
       }
     } else {
@@ -233,7 +244,51 @@ function App() {
         audioRef.current.pause();
       }
     };
-  }, [activeSoundId]);
+  }, [activeSoundId, soundVolume]);
+
+  // Persist volume
+  useEffect(() => {
+    localStorage.setItem('soundVolume', String(soundVolume));
+    if (audioRef.current) audioRef.current.volume = soundVolume;
+  }, [soundVolume]);
+
+  // Keyboard shortcuts (active in SESSION)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (view !== 'SESSION') return;
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      const typing = tag === 'input' || tag === 'textarea' || (e as any).isComposing;
+      if (typing) return;
+      if (e.code === 'Space') { e.preventDefault(); toggleTimer(); }
+      else if (e.key === 'r' || e.key === 'R') { resetTimer(); }
+      else if (e.key === 'f' || e.key === 'F') { if (isTimerRunning) finishSessionEarly(); }
+      else if (e.key === 'm' || e.key === 'M') { setIsMenuOpen(prev => !prev); }
+      else if (e.key === 'Escape' && isFullscreen) { exitFullscreen(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [view, isTimerRunning, isFullscreen]);
+
+  // Fullscreen helpers
+  const enterFullscreen = () => {
+    const el = document.documentElement as any;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    setIsFullscreen(true);
+  };
+  const exitFullscreen = () => {
+    const d = document as any;
+    if (d.exitFullscreen) d.exitFullscreen();
+    else if (d.webkitExitFullscreen) d.webkitExitFullscreen();
+    setIsFullscreen(false);
+  };
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
 
   // --- Timer Logic ---
   useEffect(() => {
@@ -906,9 +961,14 @@ function App() {
                 <p className="text-white/60 text-[10px] font-mono mt-1">#{currentSessionKey}</p>
               )}
             </div>
-            <button onClick={() => setView(selectedCourseType ? 'DETAIL' : 'HOME')} className="px-3 py-2 bg-white/20 rounded-lg text-white hover:bg-white/30 font-bold flex items-center gap-2">
-              <ChevronLeft size={16} /> Geri
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => (isFullscreen ? exitFullscreen() : enterFullscreen())} className="px-3 py-2 bg-white/20 rounded-lg text-white hover:bg-white/30 font-bold flex items-center gap-2">
+                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+              </button>
+              <button onClick={() => setView(selectedCourseType ? 'DETAIL' : 'HOME')} className="px-3 py-2 bg-white/20 rounded-lg text-white hover:bg-white/30 font-bold flex items-center gap-2">
+                <ChevronLeft size={16} /> Geri
+              </button>
+            </div>
           </div>
           <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
             <div className="md:col-span-2 flex flex-col items-center">
@@ -971,6 +1031,21 @@ function App() {
                   </button>
                 ))}
               </div>
+              <div className="mt-3">
+                <div className="flex items-center justify-between text-[10px] font-bold opacity-90">
+                  <span>Ses Seviyesi</span>
+                  <span>{Math.round(soundVolume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={soundVolume}
+                  onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
+                  className="w-full accent-yellow-300"
+                />
+              </div>
             </div>
           </div>
           <div className="mt-6 h-2 bg-white/20 rounded-full overflow-hidden">
@@ -1031,6 +1106,13 @@ function App() {
 
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
               <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2"><ListTodo size={16} /> Görevler</h3>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {['Özet çıkar', 'Soru çöz', 'Konuyu tekrar et', 'Zor sorular'].map(preset => (
+                  <button key={preset} onClick={() => handleAddTask(preset)} className="px-3 py-1.5 text-xs rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">
+                    + {preset}
+                  </button>
+                ))}
+              </div>
               <div className="flex gap-2 mb-4">
                 <input 
                   type="text" 
@@ -1264,6 +1346,41 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Mini Player Widget (HOME/DETAIL) */}
+      {view !== 'SESSION' && (isTimerRunning || timerSeconds !== initialDuration) && (
+        <div className="fixed bottom-4 right-4 left-4 md:left-auto z-[65]">
+          <div className="md:min-w-[340px] bg-white/95 backdrop-blur rounded-2xl shadow-xl border border-slate-200 p-3 flex items-center gap-3">
+            <div className="flex-1">
+              <div className="text-[10px] font-bold uppercase text-slate-400">{getTimerLabel()}</div>
+              <div className="text-xl font-black tracking-tight font-mono">{formatTime(timerSeconds)}</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleTimer}
+                className={`px-3 py-2 rounded-xl font-bold text-sm flex items-center gap-2 ${isTimerRunning ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                aria-label={isTimerRunning ? 'Duraklat' : 'Başlat'}
+              >
+                {isTimerRunning ? <Pause size={16} /> : <Play size={16} />}
+                <span className="hidden sm:inline">{isTimerRunning ? 'Duraklat' : 'Başlat'}</span>
+              </button>
+              {isTimerRunning && (
+                <button onClick={finishSessionEarly} className="px-3 py-2 rounded-xl font-bold text-sm bg-emerald-50 text-emerald-700 hover:bg-emerald-100" aria-label="Bitir">
+                  <CheckCircle size={16} />
+                  <span className="hidden sm:inline ml-1">Bitir</span>
+                </button>
+              )}
+              <button onClick={resetTimer} className="px-3 py-2 rounded-xl font-bold text-sm bg-slate-100 text-slate-700 hover:bg-slate-200" aria-label="Sıfırla">
+                <RotateCcw size={16} />
+              </button>
+              <button onClick={() => setView('SESSION')} className="px-3 py-2 rounded-xl font-bold text-sm bg-slate-900 text-white hover:bg-black/80" aria-label="Aç">
+                <Timer size={16} />
+                <span className="hidden sm:inline ml-1">Aç</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- HEADER --- */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm/50 backdrop-blur-md bg-white/90">
