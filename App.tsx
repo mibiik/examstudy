@@ -75,12 +75,14 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeCourse, setActiveCourse] = useState<ScheduleItem | null>(null);
   const [activeCourseEndTime, setActiveCourseEndTime] = useState<Date | null>(null);
+  const [activeCourseDateStr, setActiveCourseDateStr] = useState<string | null>(null);
   
   const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [customWorkMinutes, setCustomWorkMinutes] = useState(25);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerMode, setTimerMode] = useState<'WORK' | 'BREAK' | 'COURSE'>('WORK');
   const [initialDuration, setInitialDuration] = useState(25 * 60);
+  const [currentSessionKey, setCurrentSessionKey] = useState<string | null>(null);
   
   // Sound State
   const [activeSoundId, setActiveSoundId] = useState<string | null>(null);
@@ -177,6 +179,7 @@ function App() {
 
       // Only update state if values actually changed to avoid re-renders
       setActiveCourse(prev => (prev?.id === foundCourse?.id ? prev : foundCourse));
+      setActiveCourseDateStr(prev => (foundCourse ? dayData.date : null));
       
       setActiveCourseEndTime(prev => {
           // If both are null or undefined, no change
@@ -387,6 +390,15 @@ function App() {
       setTimerSeconds(diffSeconds);
       setInitialDuration(diffSeconds);
       setIsTimerRunning(true);
+      if (activeCourse) {
+        setSelectedCourseType(activeCourse.type);
+      }
+      // Unique session key: date + schedule item id
+      if (activeCourse && activeCourseDateStr) {
+        setCurrentSessionKey(`${activeCourseDateStr}-${activeCourse.id}`);
+      } else {
+        setCurrentSessionKey(`course-${Date.now()}`);
+      }
       setView('SESSION');
     } else {
       alert("Ders süresi dolmuş veya hatalı zaman.");
@@ -399,6 +411,8 @@ function App() {
     setTimerSeconds(customWorkMinutes * 60);
     setInitialDuration(customWorkMinutes * 60);
     setIsTimerRunning(true);
+    // Unique manual session key
+    setCurrentSessionKey(`manual-${type}-${Date.now()}`);
     setView('SESSION');
   };
 
@@ -419,9 +433,15 @@ function App() {
     if (!pendingSession) return;
 
     if (pendingSession.mode !== 'BREAK') {
-      const courseName = pendingSession.mode === 'COURSE' && activeCourse 
-        ? activeCourse.text 
-        : (selectedCourseType ? selectedCourseType.toString() : 'Serbest Çalışma');
+      let courseName = 'Serbest Çalışma';
+      if (pendingSession.mode === 'COURSE' && activeCourse) {
+        // Include the day label to make course instances unique across days
+        const dayLabel = activeCourseDateStr ? ` @ ${activeCourseDateStr}` : '';
+        courseName = `${activeCourse.text}${dayLabel}`;
+      } else if (selectedCourseType) {
+        const todayLabel = new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long' });
+        courseName = `${selectedCourseType.toString()} @ ${todayLabel}`;
+      }
 
       const newLog: StudyLog = {
         id: Date.now().toString(),
@@ -879,6 +899,12 @@ function App() {
             <div>
               <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold tracking-wider mb-2">{label}</span>
               <h2 className="text-2xl md:text-3xl font-black tracking-tight">{title}</h2>
+              {activeCourseDateStr && (
+                <p className="text-white/80 text-sm font-medium mt-1">{activeCourseDateStr}</p>
+              )}
+              {currentSessionKey && (
+                <p className="text-white/60 text-[10px] font-mono mt-1">#{currentSessionKey}</p>
+              )}
             </div>
             <button onClick={() => setView(selectedCourseType ? 'DETAIL' : 'HOME')} className="px-3 py-2 bg-white/20 rounded-lg text-white hover:bg-white/30 font-bold flex items-center gap-2">
               <ChevronLeft size={16} /> Geri
