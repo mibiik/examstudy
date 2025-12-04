@@ -1,0 +1,12 @@
+{
+  "name": "Ders Çalışma Programı",
+  "short_name": "DersPlan",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "description": "Odaklanma sayacı, ders programı, notlar ve görevlerle kapsamlı çalışma asistanı.",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
