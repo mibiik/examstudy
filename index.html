@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ders Çalışma Programı</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='24' fill='%23636AE6'/%3E%3Ctext x='50%' y='54%' dominant-baseline='middle' text-anchor='middle' font-size='72' font-family='Arial' fill='white'%3E%C3%97%3C/text%3E%3C/svg%3E" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f8fafc;
+      }
+
+      /* Custom Animations */
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      
+      .animate-shimmer-slide {
+        animation: shimmer 2s infinite;
+      }
+
+      @keyframes breathe {
+        0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); border-color: rgba(99, 102, 241, 0.4); }
+        50% { box-shadow: 0 0 15px 2px rgba(99, 102, 241, 0.2); border-color: rgba(99, 102, 241, 0.8); }
+        100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); border-color: rgba(99, 102, 241, 0.4); }
+      }
+
+      .animate-breathe {
+        animation: breathe 3s ease-in-out infinite;
+      }
+
+      @keyframes slideUpFade {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .animate-card-entry {
+        animation: slideUpFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        opacity: 0; /* Start hidden */
+      }
+      
+      /* Stagger delays */
+      .delay-0 { animation-delay: 0ms; }
+      .delay-75 { animation-delay: 75ms; }
+      .delay-100 { animation-delay: 100ms; }
+      .delay-150 { animation-delay: 150ms; }
+      .delay-200 { animation-delay: 200ms; }
+      .delay-300 { animation-delay: 300ms; }
+
+      /* Smooth Progress Bar */
+      .transition-width {
+        transition-property: width;
+        transition-timing-function: linear;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
