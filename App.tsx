@@ -90,6 +90,8 @@ function App() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundVolume, setSoundVolume] = useState<number>(0.6);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  // Notification sent trackers
+  const upcomingNotifiedRef = useRef<Set<string>>(new Set());
   
   // Modal for Saving/Discarding
   const [pendingSession, setPendingSession] = useState<{mode: string, duration: number} | null>(null);
@@ -131,6 +133,15 @@ function App() {
       } catch (e) {
         console.error("Failed to parse tasks", e);
       }
+    }
+
+    // Load previously sent upcoming notifications
+    const savedUpcoming = localStorage.getItem('upcomingNotifiedKeys');
+    if (savedUpcoming) {
+      try {
+        const arr: string[] = JSON.parse(savedUpcoming);
+        upcomingNotifiedRef.current = new Set(arr);
+      } catch {}
     }
 
     // Load sound volume
@@ -179,6 +190,28 @@ function App() {
       for (const item of allItems) {
         const dates = parseCourseDates(dayData.date, item.text, now);
         if (dates) {
+          // Pre-session notifications (10 min and 1 min before)
+          if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted' && now < dates.start) {
+            const msUntil = dates.start.getTime() - now.getTime();
+            const minutesUntil = Math.ceil(msUntil / 60000);
+            const baseKey = `${dayData.date}-${item.id}`;
+
+            if (minutesUntil <= 10 && minutesUntil > 1) {
+              const key10 = `${baseKey}-10`; 
+              if (!upcomingNotifiedRef.current.has(key10)) {
+                new Notification('Ders yaklaşıyor', { body: `${item.text} dersi 10 dakika sonra başlıyor. Hazırlan!` });
+                upcomingNotifiedRef.current.add(key10);
+              }
+            }
+            if (minutesUntil <= 1) {
+              const key1 = `${baseKey}-1`;
+              if (!upcomingNotifiedRef.current.has(key1)) {
+                new Notification('Başlamak üzere', { body: `${item.text} 1 dakika içinde başlıyor. İyi çalışma!` });
+                upcomingNotifiedRef.current.add(key1);
+              }
+            }
+          }
+
           if (now >= dates.start && now <= dates.end) {
             foundCourse = item;
             foundEndTime = dates.end;
@@ -205,6 +238,11 @@ function App() {
           // Otherwise, update with the new foundEndTime
           return foundEndTime;
       });
+
+      // Persist upcoming notified keys periodically (throttle by using current tick)
+      if (upcomingNotifiedRef.current.size) {
+        try { localStorage.setItem('upcomingNotifiedKeys', JSON.stringify(Array.from(upcomingNotifiedRef.current))); } catch {}
+      }
     };
 
     // Initial check
@@ -218,6 +256,8 @@ function App() {
 
     return () => clearInterval(interval);
   }, []); // Empty dependency array as checkActiveCourse is now internal
+
+  
 
   // --- Sound Effect Logic ---
   useEffect(() => {
@@ -392,6 +432,22 @@ function App() {
     });
     return closestExam;
   }, [currentTime]);
+
+  // Exam motivation notification when exam is close (<=7 days), once per day
+  useEffect(() => {
+    if (!nextExam) return;
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!notificationsEnabled) return;
+    if (nextExam.daysLeft > 7) return;
+    const todayKey = new Date().toISOString().slice(0,10);
+    const last = localStorage.getItem('lastExamMotivationDate');
+    if (last === todayKey) return;
+    const msg = nextExam.daysLeft === 0
+      ? 'Bugün sınav günü! Hazırlıklarını gözden geçir ve sakin kal.'
+      : `${nextExam.daysLeft} gün kaldı. Bugün küçük ama istikrarlı bir adım at: 30 dk tekrar!`;
+    new Notification('Sınav yaklaşırken', { body: msg });
+    localStorage.setItem('lastExamMotivationDate', todayKey);
+  }, [nextExam, notificationsEnabled]);
 
   // --- Actions ---
 
