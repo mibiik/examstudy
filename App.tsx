@@ -1012,7 +1012,7 @@ function App() {
             </div>
           </div>
           <div className="absolute bottom-8 left-0 right-0 px-6">
-            <div className="max-w-3xl mx-auto grid grid-cols-3 gap-3">
+            <div className="max-w-3xl mx-auto grid grid-cols-2 gap-3">
               <button
                 onClick={exitFullscreen}
                 className="h-14 rounded-2xl font-extrabold text-base tracking-tight flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white active:scale-[0.98] transition"
@@ -1027,12 +1027,7 @@ function App() {
               >
                 {isTimerRunning ? 'Duraklat' : 'Devam'}
               </button>
-              <button
-                onClick={() => setView(selectedCourseType ? 'DETAIL' : 'HOME')}
-                className="h-14 rounded-2xl font-extrabold text-base tracking-tight flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white active:scale-[0.98] transition"
-              >
-                Geri
-              </button>
+              
             </div>
           </div>
         </div>
