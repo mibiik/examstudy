@@ -62,7 +62,7 @@ function App() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const activeDayRef = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<'HOME' | 'DETAIL' | 'SESSION'>('HOME');
+  const [view, setView] = useState<'HOME' | 'DETAIL' | 'SESSION' | 'EVENTS'>('HOME');
   const [detailTab, setDetailTab] = useState<'NOTES' | 'TASKS'>('NOTES'); // New Tab state
   const [selectedCourseType, setSelectedCourseType] = useState<CourseType | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -71,6 +71,11 @@ function App() {
   const [logs, setLogs] = useState<StudyLog[]>([]);
   const [notes, setNotes] = useState<{[key: string]: string}>({});
   const [tasks, setTasks] = useState<TodoItem[]>([]); // New Tasks State
+  type EventItem = { id: string; title: string; time?: string };
+  const [eventsByDate, setEventsByDate] = useState<Record<string, EventItem[]>>({});
+  const [eventDate, setEventDate] = useState<string>(() => new Date().toISOString().slice(0,10));
+  const [newEventTitle, setNewEventTitle] = useState<string>('');
+  const [newEventTime, setNewEventTime] = useState<string>('');
 
   // --- Timer & Modal State ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -132,6 +137,16 @@ function App() {
         setTasks(JSON.parse(savedTasks));
       } catch (e) {
         console.error("Failed to parse tasks", e);
+      }
+    }
+
+    // Load custom events
+    const savedEvents = localStorage.getItem('customEvents');
+    if (savedEvents) {
+      try {
+        setEventsByDate(JSON.parse(savedEvents));
+      } catch (e) {
+        console.error('Failed to parse customEvents', e);
       }
     }
 
@@ -244,7 +259,6 @@ function App() {
         try { localStorage.setItem('upcomingNotifiedKeys', JSON.stringify(Array.from(upcomingNotifiedRef.current))); } catch {}
       }
     };
-
     // Initial check
     checkActiveCourse(new Date());
 
@@ -291,6 +305,11 @@ function App() {
     localStorage.setItem('soundVolume', String(soundVolume));
     if (audioRef.current) audioRef.current.volume = soundVolume;
   }, [soundVolume]);
+
+  // Persist custom events
+  useEffect(() => {
+    try { localStorage.setItem('customEvents', JSON.stringify(eventsByDate)); } catch {}
+  }, [eventsByDate]);
 
   // Keyboard shortcuts (active in SESSION)
   useEffect(() => {
@@ -601,6 +620,29 @@ function App() {
     setActiveSoundId(null);
   };
 
+  // --- Custom Events Actions ---
+  const addEvent = () => {
+    const title = newEventTitle.trim();
+    if (!title) return;
+    const item: EventItem = { id: Date.now().toString(), title, time: newEventTime || undefined };
+    setEventsByDate(prev => {
+      const list = prev[eventDate] ? [...prev[eventDate]] : [];
+      list.push(item);
+      return { ...prev, [eventDate]: list };
+    });
+    setNewEventTitle('');
+    setNewEventTime('');
+  };
+
+  const deleteEvent = (date: string, id: string) => {
+    setEventsByDate(prev => {
+      const list = prev[date] ? prev[date].filter(e => e.id !== id) : [];
+      const next = { ...prev };
+      if (list.length) next[date] = list; else delete next[date];
+      return next;
+    });
+  };
+
   // --- Render Helpers ---
 
   const formatTime = (seconds: number) => {
@@ -703,6 +745,7 @@ function App() {
                   </div>
                 </div>
               );
+
             })}
           </div>
       </div>
@@ -1484,6 +1527,9 @@ function App() {
           </div>
           
           <div className="flex items-center gap-2">
+             <button onClick={() => setView('EVENTS')} className="hidden md:inline-flex px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-black/80 text-sm font-bold gap-2">
+               <CalendarClock size={16} /> Etkinlikler
+             </button>
              <div className="md:hidden text-xs font-mono font-bold text-slate-400 mr-2">
                 {currentTime.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
              </div>
@@ -1502,7 +1548,7 @@ function App() {
 
       {/* --- CONTENT --- */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 min-h-[calc(100vh-4rem)]">
-         {view === 'HOME' ? renderHome() : view === 'DETAIL' ? renderDetail() : renderSession()}
+         {view === 'HOME' ? renderHome() : view === 'DETAIL' ? renderDetail() : view === 'EVENTS' ? renderEvents() : renderSession()}
       </main>
     </div>
   );
