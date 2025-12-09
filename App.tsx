@@ -8,7 +8,7 @@ import {
   Headphones, ListTodo, Trophy, CalendarClock, TrendingUp, Volume2, Plus, Square, CheckSquare,
   Maximize2, Minimize2
 } from 'lucide-react';
-import { CourseType, ScheduleItem, StudyLog, TodoItem } from './types';
+import { CourseType, ScheduleItem, StudyLog, TodoItem, DaySchedule } from './types';
 
 // --- Constants for New Features ---
 
@@ -76,6 +76,32 @@ function App() {
   const [eventDate, setEventDate] = useState<string>(() => new Date().toISOString().slice(0,10));
   const [newEventTitle, setNewEventTitle] = useState<string>('');
   const [newEventTime, setNewEventTime] = useState<string>('');
+  // Custom schedule overrides (key: ISO date string 'YYYY-MM-DD')
+  const [customScheduleOverrides, setCustomScheduleOverrides] = useState<Record<string, DaySchedule>>({});
+  // Event editor fields (moved to top-level to keep hook order stable)
+  const [eventStart, setEventStart] = useState<string>('');
+  const [eventEnd, setEventEnd] = useState<string>('');
+  
+  // Build effective schedule by merging base SCHEDULE_DATA with overrides
+  const effectiveSchedule = useMemo<DaySchedule[]>(() => {
+    // Helper to convert ISO to 'DD Aralık' label
+    const toLabel = (iso: string) => {
+      const d = new Date(iso);
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${day} Aralık`;
+    };
+    // Index overrides by label to match SCHEDULE_DATA.date
+    const overrideByLabel: Record<string, DaySchedule> = {};
+    for (const iso in customScheduleOverrides) {
+      const ds = customScheduleOverrides[iso];
+      if (ds) overrideByLabel[toLabel(iso)] = ds;
+    }
+
+    return SCHEDULE_DATA.map(base => {
+      const ov = overrideByLabel[base.date];
+      return ov ? { ...ov, date: base.date, dayName: base.dayName } : base;
+    });
+  }, [customScheduleOverrides]);
 
   // --- Timer & Modal State ---
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -150,6 +176,12 @@ function App() {
       }
     }
 
+    // Load custom schedule overrides
+    const savedOverrides = localStorage.getItem('customScheduleOverrides');
+    if (savedOverrides) {
+      try { setCustomScheduleOverrides(JSON.parse(savedOverrides)); } catch {}
+    }
+
     // Load previously sent upcoming notifications
     const savedUpcoming = localStorage.getItem('upcomingNotifiedKeys');
     if (savedUpcoming) {
@@ -190,7 +222,7 @@ function App() {
     const checkActiveCourse = (now: Date) => {
       if (now.getMonth() !== 11) return; 
       const currentDay = now.getDate();
-      const dayData = SCHEDULE_DATA.find(d => parseInt(d.date) === currentDay);
+      const dayData = effectiveSchedule.find(d => parseInt(d.date) === currentDay);
 
       if (!dayData) {
         setActiveCourse(prev => prev ? null : prev);
@@ -269,7 +301,7 @@ function App() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, []); // Empty dependency array as checkActiveCourse is now internal
+  }, [effectiveSchedule]);
 
   
 
@@ -310,6 +342,11 @@ function App() {
   useEffect(() => {
     try { localStorage.setItem('customEvents', JSON.stringify(eventsByDate)); } catch {}
   }, [eventsByDate]);
+
+  // Persist custom schedule overrides
+  useEffect(() => {
+    try { localStorage.setItem('customScheduleOverrides', JSON.stringify(customScheduleOverrides)); } catch {}
+  }, [customScheduleOverrides]);
 
   // Keyboard shortcuts (active in SESSION)
   useEffect(() => {
@@ -431,7 +468,7 @@ function App() {
     const now = currentTime;
     let closestExam: { item: ScheduleItem, date: Date, daysLeft: number } | null = null;
 
-    SCHEDULE_DATA.forEach(day => {
+    effectiveSchedule.forEach(day => {
       [...day.morning, ...day.afternoon, ...day.evening].forEach(item => {
         if (item.isExam) {
           const dates = parseCourseDates(day.date, item.text, now);
@@ -450,7 +487,7 @@ function App() {
       });
     });
     return closestExam;
-  }, [currentTime]);
+  }, [currentTime, effectiveSchedule]);
 
   // Exam motivation notification when exam is close (<=7 days), once per day
   useEffect(() => {
@@ -713,7 +750,7 @@ function App() {
              <div className="p-4 font-bold text-indigo-600 text-xs uppercase tracking-wider border-l border-slate-200 flex items-center gap-2"><Moon size={16} /> Akşam</div>
           </div>
           <div className="divide-y divide-slate-100">
-            {SCHEDULE_DATA.map((day, idx) => {
+            {effectiveSchedule.map((day, idx) => {
                const isCurrentDay = isToday(day.date);
                return (
                 <div key={day.date} className={`grid grid-cols-[120px_1fr_1fr_1fr] transition-colors ${
@@ -752,7 +789,7 @@ function App() {
 
       {/* Mobile View List */}
       <div className="xl:hidden flex flex-col gap-6">
-          {SCHEDULE_DATA.map((day) => {
+          {effectiveSchedule.map((day) => {
             const isCurrentDay = isToday(day.date);
             
             return (
@@ -1276,43 +1313,97 @@ function App() {
   };
 
   const renderEvents = () => {
-    const list = eventsByDate[eventDate] || [];
+    // Build or derive the day's schedule for selected ISO date
+    const d = new Date(eventDate);
+    const label = String(d.getDate()).padStart(2,'0') + ' Aralık';
+    const baseDay = effectiveSchedule.find(ds => ds.date === label);
+    const currentDay: DaySchedule | null = customScheduleOverrides[eventDate] || (baseDay ? { ...baseDay } : null);
+    const listAll: ScheduleItem[] = currentDay ? [...currentDay.morning, ...currentDay.afternoon, ...currentDay.evening] : [];
+
+    // New entry fields (required: name, start, end)
+    const [name, setName] = [newEventTitle, setNewEventTitle];
+
+    const removeItem = (id: string) => {
+      if (!currentDay) return;
+      const next: DaySchedule = {
+        ...currentDay,
+        morning: currentDay.morning.filter(i => i.id !== id),
+        afternoon: currentDay.afternoon.filter(i => i.id !== id),
+        evening: currentDay.evening.filter(i => i.id !== id)
+      };
+      setCustomScheduleOverrides(prev => ({ ...prev, [eventDate]: next }));
+    };
+
+    const addItem = () => {
+      const title = name.trim();
+      if (!title || !eventStart || !eventEnd) { alert('İsim ve saat aralığı zorunludur.'); return; }
+      const text = `${title} (${eventStart}-${eventEnd})`;
+      const newItem: ScheduleItem = {
+        id: Date.now().toString(),
+        text,
+        type: CourseType.OTHER,
+        time: `${eventStart}-${eventEnd}`
+      };
+      const hour = parseInt(eventStart.split(':')[0] || '0', 10);
+      let slot: 'morning' | 'afternoon' | 'evening' = 'morning';
+      if (hour >= 12 && hour < 17) slot = 'afternoon';
+      else if (hour >= 17) slot = 'evening';
+
+      const next: DaySchedule = currentDay ? { ...currentDay } : {
+        date: label,
+        dayName: baseDay?.dayName || d.toLocaleDateString('tr-TR', { weekday: 'long' }),
+        morning: [], afternoon: [], evening: []
+      };
+      (next as any)[slot] = [...(next as any)[slot], newItem];
+      setCustomScheduleOverrides(prev => ({ ...prev, [eventDate]: next }));
+      setNewEventTitle('');
+      setEventStart('');
+      setEventEnd('');
+    };
     return (
       <div className="space-y-6 animate-in fade-in duration-300">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-slate-500 font-bold text-sm"><CalendarClock size={16} /> Etkinlik Planlayıcı</div>
+            <div className="flex items-center gap-2 text-slate-500 font-bold text-sm"><CalendarClock size={16} /> Program Düzenleyici</div>
             <button onClick={() => setView('HOME')} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 font-bold">Geri</button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-1 space-y-3">
-              <label className="text-xs font-bold text-slate-500">Tarih</label>
+              <label className="text-xs font-bold text-slate-500">Tarih (zorunlu)</label>
               <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-              <label className="text-xs font-bold text-slate-500">Başlık</label>
-              <input type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} placeholder="Etkinlik başlığı" className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-              <label className="text-xs font-bold text-slate-500">Saat (opsiyonel)</label>
-              <input type="time" value={newEventTime} onChange={(e) => setNewEventTime(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
-              <button onClick={addEvent} className="w-full bg-indigo-600 text-white rounded-lg py-2 font-bold hover:bg-indigo-700 flex items-center justify-center gap-2"><Plus size={18} /> Ekle</button>
+              <label className="text-xs font-bold text-slate-500">İsim (zorunlu)</label>
+              <input type="text" value={name} onChange={(e) => setNewEventTitle(e.target.value)} placeholder="Ders / Etkinlik adı" className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Başlangıç (zorunlu)</label>
+                  <input type="time" value={eventStart} onChange={(e) => setEventStart(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500">Bitiş (zorunlu)</label>
+                  <input type="time" value={eventEnd} onChange={(e) => setEventEnd(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <button onClick={addItem} className="w-full bg-indigo-600 text-white rounded-lg py-2 font-bold hover:bg-indigo-700 flex items-center justify-center gap-2"><Plus size={18} /> Ekle</button>
             </div>
             <div className="md:col-span-2">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-slate-600">{new Date(eventDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'long', year:'numeric', weekday:'long' })}</h3>
-                <span className="text-xs text-slate-400 font-mono">{list.length} etkinlik</span>
+                <span className="text-xs text-slate-400 font-mono">{listAll.length} kayıt</span>
               </div>
-              {list.length ? (
+              {listAll.length ? (
                 <div className="space-y-2">
-                  {list.sort((a,b) => (a.time||'').localeCompare(b.time||'')).map(ev => (
+                  {listAll.sort((a,b) => (a.time||'').localeCompare(b.time||'')).map(ev => (
                     <div key={ev.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 text-center text-xs font-bold text-slate-500">{ev.time || '--:--'}</div>
-                        <div className="text-slate-800 font-semibold">{ev.title}</div>
+                        <div className="w-16 text-center text-xs font-bold text-slate-500">{ev.time || '--:--'}</div>
+                        <div className="text-slate-800 font-semibold">{ev.text.replace(/\s*\(\d{2}:\d{2}-\d{2}:\d{2}\)$/, '')}</div>
                       </div>
-                      <button onClick={() => deleteEvent(eventDate, ev.id)} className="text-red-500 hover:text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                      <button onClick={() => removeItem(ev.id)} className="text-red-500 hover:text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-8 text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl">Bu tarihte etkinlik yok. Soldan ekleyebilirsin.</div>
+                <div className="p-8 text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl">Bu tarihte kayıt yok. Soldan ekleyebilirsin.</div>
               )}
             </div>
           </div>
@@ -1383,6 +1474,16 @@ function App() {
                {nextLevel && (
                  <p className="text-[10px] mt-2 text-right opacity-80">Sonraki: {nextLevel.name} ({nextLevel.minMinutes - totalMinutesStudied} dk kaldı)</p>
                )}
+            </div>
+
+            {/* Nav: Events (Mobile-friendly) */}
+            <div>
+              <button
+                onClick={() => { setView('EVENTS'); setIsMenuOpen(false); }}
+                className="w-full py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-black/80 transition-colors shadow-sm flex items-center justify-center gap-2"
+              >
+                <CalendarClock size={16} /> Etkinlikler
+              </button>
             </div>
 
             {/* Active Course Status */}
