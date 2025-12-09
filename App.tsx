@@ -1003,6 +1003,41 @@ function App() {
     const title = activeCourse?.text || (selectedCourseType ? String(selectedCourseType) : 'Odak Oturumu');
     const label = getTimerLabel();
     const percent = initialDuration > 0 ? Math.max(0, Math.min(100, (timerSeconds / initialDuration) * 100)) : 0;
+    if (isFullscreen) {
+      return (
+        <div className={`${theme.bg} fixed inset-0 z-[100] text-white`}> 
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-white/90 text-[22vw] leading-none font-black tracking-tighter tabular-nums font-mono drop-shadow-sm select-none">
+              {formatTime(timerSeconds)}
+            </div>
+          </div>
+          <div className="absolute bottom-8 left-0 right-0 px-6">
+            <div className="max-w-3xl mx-auto grid grid-cols-3 gap-3">
+              <button
+                onClick={exitFullscreen}
+                className="h-14 rounded-2xl font-extrabold text-base tracking-tight flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white active:scale-[0.98] transition"
+                aria-label="Çık"
+              >
+                Çık
+              </button>
+              <button
+                onClick={toggleTimer}
+                className={`h-14 rounded-2xl font-extrabold text-base tracking-tight flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition ${isTimerRunning ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-white text-slate-900 hover:bg-slate-100'}`}
+                aria-label={isTimerRunning ? 'Duraklat' : 'Devam'}
+              >
+                {isTimerRunning ? 'Duraklat' : 'Devam'}
+              </button>
+              <button
+                onClick={() => setView(selectedCourseType ? 'DETAIL' : 'HOME')}
+                className="h-14 rounded-2xl font-extrabold text-base tracking-tight flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 text-white active:scale-[0.98] transition"
+              >
+                Geri
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="space-y-6 pb-32 md:pb-0">
         <div className={`${theme.bg} rounded-3xl p-6 text-white shadow-xl relative overflow-hidden`}>
