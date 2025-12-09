@@ -1275,6 +1275,52 @@ function App() {
     );
   };
 
+  const renderEvents = () => {
+    const list = eventsByDate[eventDate] || [];
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-slate-500 font-bold text-sm"><CalendarClock size={16} /> Etkinlik Planlayıcı</div>
+            <button onClick={() => setView('HOME')} className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-700 font-bold">Geri</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-1 space-y-3">
+              <label className="text-xs font-bold text-slate-500">Tarih</label>
+              <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+              <label className="text-xs font-bold text-slate-500">Başlık</label>
+              <input type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} placeholder="Etkinlik başlığı" className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+              <label className="text-xs font-bold text-slate-500">Saat (opsiyonel)</label>
+              <input type="time" value={newEventTime} onChange={(e) => setNewEventTime(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2" />
+              <button onClick={addEvent} className="w-full bg-indigo-600 text-white rounded-lg py-2 font-bold hover:bg-indigo-700 flex items-center justify-center gap-2"><Plus size={18} /> Ekle</button>
+            </div>
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-bold text-slate-600">{new Date(eventDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'long', year:'numeric', weekday:'long' })}</h3>
+                <span className="text-xs text-slate-400 font-mono">{list.length} etkinlik</span>
+              </div>
+              {list.length ? (
+                <div className="space-y-2">
+                  {list.sort((a,b) => (a.time||'').localeCompare(b.time||'')).map(ev => (
+                    <div key={ev.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 text-center text-xs font-bold text-slate-500">{ev.time || '--:--'}</div>
+                        <div className="text-slate-800 font-semibold">{ev.title}</div>
+                      </div>
+                      <button onClick={() => deleteEvent(eventDate, ev.id)} className="text-red-500 hover:text-red-600 p-2 rounded-lg hover:bg-red-50"><Trash2 size={16} /></button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-400 text-sm border border-dashed border-slate-200 rounded-xl">Bu tarihte etkinlik yok. Soldan ekleyebilirsin.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans relative">
       
